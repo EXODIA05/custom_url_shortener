@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ URL Shortener</title>
+    <!-- Link to external CSS file -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <div class="container">
+        <h2>URL Shortener</h2>
+        <p class="subtitle">Enter a messy URL, get a clean link back instantly.</p>
+        
+        <form action="/shorten" method="GET">
+            <div class="input-group">
+                <label for="url">Target Destination</label>
+                <input type="text" id="url" name="url" placeholder="e.g., github.com/EXODIA05" required autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label for="alias">Custom Alias (Optional)</label>
+                <input type="text" id="alias" name="alias" placeholder="e.g., my-cool-link" autocomplete="off">
+            </div>
+
+            <button type="submit">Shorten Matrix URL</button>
+        </form>
+
+        <!-- Dynamic Output Area: Success -->
+        {% if short_url %}
+            <div class="result">
+                <strong>Generated Link:</strong> 
+                <a href="{{ short_url }}" target="_blank">{{ short_url }}</a>
+            </div>
+        {% endif %}
+
+        <!-- Dynamic Output Area: Security Threat / Error -->
+        {% if error %}
+            <div class="error-summary" id="errorBox">
+                <strong>🚨 System Fault:</strong> URL Processing Flagged Unsafe
+                <div class="error-details">
+                    {{ error }}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Link to external JavaScript file -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
