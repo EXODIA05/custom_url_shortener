@@ -104,16 +104,4 @@ custom_url_shortener/
 2. If valid and safe, the URL is assigned a numeric ID from an incrementing counter, which is then base62-encoded (using digits + upper/lowercase letters) to produce a short code.
 3. Visiting `/<short_code>` decodes the code back into its numeric ID (or looks it up as a custom alias) and redirects to the stored long URL.
 
-> **Note:** This project currently stores URL mappings in memory (Python dictionaries), so all shortened links are lost when the server restarts. For persistent storage, consider adding a database (e.g. SQLite, PostgreSQL, or Redis).
-
-## Limitations & Ideas for Improvement
-
-- Add persistent storage instead of in-memory dictionaries.
-- Add link expiration and click analytics.
-- Add rate limiting to prevent abuse.
-- Move the Safe Browsing API key out of source code and into environment variables/secrets management.
-- Add unit tests for URL validation and encoding/decoding logic.
-
-## License
-
-No license has been specified for this project. Consider adding one (e.g. MIT) if you plan to share or accept contributions.
+> **Note:** This project currently stores URL mappings in memory (Python dictionaries), so all shortened links are lost when the server restarts. For persistent storage, consider adding a database
