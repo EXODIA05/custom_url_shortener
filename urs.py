@@ -1,7 +1,7 @@
 #building url shortener from scartch
 from urllib.parse import urlparse
 from flask import Flask, request, redirect,render_template
-import random  
+import sqlite3
 import requests
 import string
 import os
@@ -13,12 +13,30 @@ safe_browsing_url = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?
 
 app = Flask(__name__)
 
-global_counter = random.randint(1000000,99999999)
-scope=string.digits+string.ascii_letters
+id_offset = 100000 #autoincrement starts here
+scope = string.digits+string.ascii_letters
 
-url_to_id ={}
-id_to_url = {}
-alias_to_url = {}
+#connection to a database
+def get_db_connection():
+     conn = sqlite3.connect("urls.db")
+     conn.row_factory = sqlite3.Row #allows accessing data by columns 
+     return conn
+def init_db():
+     conn = get_db_connection()
+     cursor = conn.cursor() # to execute sql commands
+     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS urls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            long_url TEXT NOT NULL UNIQUE,
+            custom_alias TEXT UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+     cursor.execute("SELECT COUNT(*) FROM urls")
+     if cursor.fetchone()[0] == 0:
+          cursor.execute("INSERT INTO sqlite_sequence(name,seq) VALUES ("urls",?)", (id_offset))
+     conn.commit()
+     conn.close()
 def check_url_structure(url):
      try:
           parsed = urlparse(url)
@@ -109,44 +127,46 @@ def decode(y):
 
 def shorten():
 
-     global global_counter
      long_url = request.args.get('url') #to get the url only
-     custom_alias = request.args.get('alias')
-     #security func:
-     if not is_url_safe(long_url):
-          return render_template("index.html", error="Security Warning: This URL has been flagged as unsafe!"), 400
-
+     
      if not long_url:
           return render_template("index.html", error="No URL provided"), 400
      
      # Automatically prepend 'http://' if the user forgets it
      if not (long_url.startswith("http://") or long_url.startswith("https://")):
           long_url = "http://" + long_url
+     custom_alias = request.args.get('alias')
+      #security func:
+     if not is_url_safe(long_url):
+          return render_template("index.html", error="Security Warning: This URL has been flagged as unsafe!"), 400
+     
+     conn = get_db_connection()
+     cursor = conn.cursor()
 
      if custom_alias:
-          if custom_alias in alias_to_url:
-               return render_template("index.html",error ="alias taken"),400
-               
-          alias_to_url[custom_alias]=long_url
-          full_short_url = f"{request.host_url}{custom_alias}"
-          return render_template("index.html",short_url= full_short_url)
-     
-     if long_url in url_to_id:
-          existing_id = url_to_id[long_url]
-          short_url = encode_base62(existing_id)
+               cursor.execute("SELECT 1 FROM urls where custom_alias =?",(custom_alias,))
+               if cursor.fetchone():
+                    conn.close()
+                    return render_template("index.html",error ="alias taken"),400
+               cursor.execute("INSERT INTO urls (long_url,custom_alias) VALUES (?,?)",(long_url,custom_alias))
+               conn.commit()
+               conn.close()
+               full_short_url = f"{request.host_url}{custom_alias}"
+               return render_template("index.html", short_url=full_short_url)
+     if long_url :
+          cursor.execute("SELECT id,custom_alias FROM urls where long_url =?",(long_url,))
+          existing = cursor.fetchone()
+          if existing :
+               short_code = existing["custom_alias"] if existing["custom_alias"] else encode_base62(existing["id"])
+               full_short_url = f"{request.host_url}{short_code}"
+               return render_template("index.html",short_url = {full_short_url})
+          cursor.execute("INSERT INTO url (long_url) into VALUES (?)",(long_url,))
+          conn.commit()
+          newid = cursor.lastrowid
+          short_code = encode_base62(newid)
+          conn.close()
           full_short_url = f"{request.host_url}{short_url}"
-          return render_template("index.html", short_url=full_short_url)
-
-     if check_url_structure(long_url): 
-          short_url = encode_base62(global_counter)
-          id_to_url[global_counter] = long_url
-          url_to_id[long_url] = global_counter
-          global_counter += 1
-          full_short_url = f"{request.host_url}{short_url}"
-          return render_template("index.html", short_url=full_short_url)
-          
-     return render_template("index.html", error="Invalid URL structure"), 400
-
+          return render_template("index.html",short_url = full_short_url)
 @app.route("/")
 def home():
      return render_template("index.html")
