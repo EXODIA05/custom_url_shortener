@@ -21,6 +21,7 @@ def get_db_connection():
      conn = sqlite3.connect("urls.db")
      conn.row_factory = sqlite3.Row #allows accessing data by columns 
      return conn
+
 def init_db():
      conn = get_db_connection()
      cursor = conn.cursor() # to execute sql commands
@@ -34,9 +35,13 @@ def init_db():
     """)
      cursor.execute("SELECT COUNT(*) FROM urls")
      if cursor.fetchone()[0] == 0:
-          cursor.execute("INSERT INTO sqlite_sequence(name,seq) VALUES ("urls",?)", (id_offset))
+          cursor.execute(
+               "INSERT INTO sqlite_sequence(name,seq) VALUES ('urls',?)",
+                         (id_offset,)
+                         )
      conn.commit()
      conn.close()
+
 def check_url_structure(url):
      try:
           parsed = urlparse(url)
@@ -148,42 +153,59 @@ def shorten():
                if cursor.fetchone():
                     conn.close()
                     return render_template("index.html",error ="alias taken"),400
-               cursor.execute("INSERT INTO urls (long_url,custom_alias) VALUES (?,?)",(long_url,custom_alias))
+               cursor.execute("INSERT INTO urls (long_url,custom_alias) VALUES (?,?)",(long_url,custom_alias,))
                conn.commit()
                conn.close()
                full_short_url = f"{request.host_url}{custom_alias}"
                return render_template("index.html", short_url=full_short_url)
+
      if long_url :
-          cursor.execute("SELECT id,custom_alias FROM urls where long_url =?",(long_url,))
+          cursor.execute("SELECT id,custom_alias FROM urls where long_url=?",(long_url,))
           existing = cursor.fetchone()
+
           if existing :
+               conn.close()
                short_code = existing["custom_alias"] if existing["custom_alias"] else encode_base62(existing["id"])
                full_short_url = f"{request.host_url}{short_code}"
-               return render_template("index.html",short_url = {full_short_url})
+               return render_template("index.html",short_url = full_short_url)
+
           cursor.execute("INSERT INTO url (long_url) into VALUES (?)",(long_url,))
           conn.commit()
           newid = cursor.lastrowid
           short_code = encode_base62(newid)
           conn.close()
-          full_short_url = f"{request.host_url}{short_url}"
+
+          full_short_url = f"{request.host_url}{short_code}"
           return render_template("index.html",short_url = full_short_url)
+
 @app.route("/")
+
 def home():
      return render_template("index.html")
 
 @app.route("/<short_url>")
-def redirect_to_longurl(short_url):
-     if short_url in alias_to_url:
-          return redirect(alias_to_url[short_url])
-     try:
-          decoded = decode(short_url)
-          longurl = id_to_url.get(decoded)
-          if longurl :
-               return redirect(longurl)
+
+def redirect_to_long_url(short_url):
+     conn = get_db_connection()
+     cursor = conn.cursor()
+
+     cursor.execute("SELECT long_url from urls where custom_alias ?",(short_url,))
+     row = cursor.fetchone()
+     if row :
+          conn.close()
+          return redirect(row["long_url"])
+     try :
+          decoded_id = decode(short_url)
+          cursor.execute("SELECT long_url from urls where id=?",(decoded_id,))
+          row = cursor.fetchone()
+          if row :
+               conn.close()
+               return redirect(row["long_url"])
      except Exception:
           pass
-
-     return "Not found",404
+     conn.close()
+     return "NOT FOUND",400
 
 if __name__ == "__main__":
-     app.run(debug=True)
+    init_db()
+    app.run(debug=True)
